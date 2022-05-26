@@ -156,19 +156,6 @@ int main(void) {
 		EEPROMWrite();
 		EEPROMRead(eepromDataReadBack, 3);
 		HAL_UART_Receive_IT(&huart2, RxDataBuffer, 1);
-
-		static uint8_t num = 0;
-		static uint64_t timestamp = 0;
-		if (micros() - timestamp > 1000000) //1 s
-				{
-			timestamp = micros();
-			TempOld[num] = Temp;
-			TempNow = (((TempOld[num]*3.6/256)-0.76 )/2.5)+25;
-			num++;
-			if (num == 100) {
-				num = 0;
-			}
-		}
 	}
 	/* USER CODE END 3 */
 }
@@ -579,6 +566,22 @@ void IOExpenderInit() {
 	 for_spi[1] = Setting;
 	HAL_GPIO_WritePin(SPI_SS_GPIO_Port, SPI_SS_Pin, GPIO_PIN_RESET);
 	HAL_SPI_Transmit_IT(&hspi3, Setting, 16);*/
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+{
+	static uint8_t num = 0;
+	static uint64_t timestamp = 0;
+	if (micros() - timestamp > 1000000) //1 s
+			{
+		timestamp = micros();
+		TempOld[num] = Temp;
+		TempNow = (((TempOld[num]*3.6/256)-0.76 )/2.5)+25;
+		num++;
+		if (num == 100) {
+			num = 0;
+		}
+	}
 }
 
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
