@@ -43,7 +43,6 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
-DMA_HandleTypeDef hdma_adc1;
 
 I2C_HandleTypeDef hi2c1;
 
@@ -56,13 +55,20 @@ DMA_HandleTypeDef hdma_tim2_ch1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+typedef struct {
+	ADC_ChannelConfTypeDef Config;
+	uint8_t data;
+} ADCstructure;
+
+ADCstructure ADC_1;
+
 uint8_t Temp = 0;
 uint16_t TempOld[100] = { 0 };
 uint8_t TempNow = 0;
 
 uint32_t capturedata[CAPTURENUM] = { 0 };
-int64_t DiffTime[CAPTURENUM-1] = { 0 };
-float MeanTime =0;
+int64_t DiffTime[CAPTURENUM - 1] = { 0 };
+float MeanTime = 0;
 
 char TxDataBuffer[32] = { 0 };
 char RxDataBuffer[3] = { 0 };
@@ -100,6 +106,9 @@ static void MX_SPI3_Init(void);
 static void MX_TIM11_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
+void ADCPollingMethodUpdate();
+void ADCConfigInit();
+
 void UI_UART();
 
 void buttonReaderCycle();
@@ -155,11 +164,11 @@ int main(void)
   /* USER CODE BEGIN 2 */
 	HAL_TIM_Base_Start_IT(&htim11);
 	HAL_UART_Transmit(&huart2, (uint8_t*) H0, strlen(H0), 1000);
-	/*HAL_ADC_Start_DMA(&hadc1, (uint32_t*) &Temp, 1);
-	IOExpenderInit();*/
+	ADCConfigInit();
+	IOExpenderInit();
 	HAL_TIM_Base_Start(&htim2);
 	HAL_TIM_IC_Start_DMA(&htim2, TIM_CHANNEL_1, (uint32_t*) &capturedata,
-				CAPTURENUM);
+	CAPTURENUM);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -172,6 +181,7 @@ int main(void)
 		EEPROMRead(eepromDataReadBack, 3);
 		HAL_UART_Receive_IT(&huart2, RxDataBuffer, 1);
 
+		ADCPollingMethodUpdate();
 		buttonReaderCycle();
 	}
   /* USER CODE END 3 */
@@ -250,7 +260,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.NbrOfConversion = 1;
-  hadc1.Init.DMAContinuousRequests = ENABLE;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
@@ -260,7 +270,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_TEMPSENSOR;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_15CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -472,16 +482,12 @@ static void MX_DMA_Init(void)
 {
 
   /* DMA controller clock enable */
-  __HAL_RCC_DMA2_CLK_ENABLE();
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
   /* DMA1_Stream5_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
-  /* DMA2_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
 
 }
 
@@ -542,8 +548,8 @@ void UI_UART() {
 	case 0:
 		HAL_UART_Transmit(&huart2, (uint8_t*) H1, strlen(H1), 10);
 		sprintf(TxDataBuffer, "now station_goal:[%d]\r\n", station_goal);
-		HAL_UART_Transmit(&huart2, (uint8_t*) TxDataBuffer, strlen(TxDataBuffer),
-				1000);
+		HAL_UART_Transmit(&huart2, (uint8_t*) TxDataBuffer,
+				strlen(TxDataBuffer), 1000);
 		n_state = 1;
 	case 1:
 		switch (RxDataBuffer[0]) {
@@ -644,18 +650,18 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 }
 
 void buttonReaderCycle() {
-	uint32_t CapPos =CAPTURENUM -  __HAL_DMA_GET_COUNTER(htim2.hdma[TIM_DMA_ID_CC1]);
-	uint32_t sum = 0 ;
+	uint32_t CapPos = CAPTURENUM
+			- __HAL_DMA_GET_COUNTER(htim2.hdma[TIM_DMA_ID_CC1]);
+	uint32_t sum = 0;
 
-	for(register int i=2 ;i < CAPTURENUM-1;i++)
-	{
-		DiffTime[i]  = capturedata[(CapPos+1+i)%CAPTURENUM]-capturedata[(CapPos+i)%CAPTURENUM];
+	for (register int i = 2; i < CAPTURENUM - 1; i++) {
+		DiffTime[i] = capturedata[(CapPos + 1 + i) % CAPTURENUM]
+				- capturedata[(CapPos + i) % CAPTURENUM];
 		//Sum all  Diff
 		sum += DiffTime[i];
 	}
 
-
-	MeanTime =sum / (float)(CAPTURENUM-3);
+	MeanTime = sum / (float) (CAPTURENUM - 3);
 }
 
 void EEPROMWrite() {
@@ -695,19 +701,19 @@ void IOExpenderInit() {
 }
 
 /*void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
-	static uint8_t num = 0;
-	static uint64_t timestamp = 0;
-	if (micros() - timestamp > 1000000) //1 s
-			{
-		timestamp = micros();
-		TempOld[num] = Temp;
-		TempNow = (((TempOld[num] * 3.6 / 256) - 0.76) / 2.5) + 25;
-		num++;
-		if (num == 100) {
-			num = 0;
-		}
-	}
-}*/
+ static uint8_t num = 0;
+ static uint64_t timestamp = 0;
+ if (micros() - timestamp > 1000000) //1 s
+ {
+ timestamp = micros();
+ TempOld[num] = Temp;
+ TempNow = (((TempOld[num] * 3.6 / 256) - 0.76) / 2.5) + 25;
+ num++;
+ if (num == 100) {
+ num = 0;
+ }
+ }
+ }*/
 
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
 	if (hspi == &hspi3) {
@@ -732,6 +738,37 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
  IOExpdreWriteFlag = 0;
  }
  */
+
+void ADCConfigInit() {
+	ADC_1.Config.Channel = ADC_CHANNEL_0;
+	ADC_1.Config.Rank = 1;
+	ADC_1.Config.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+}
+
+void ADCPollingMethodUpdate() {
+	static uint8_t num = 0;
+	static uint64_t timestamp = 0;
+	HAL_ADC_ConfigChannel(&hadc1, &ADC_1.Config);
+	HAL_ADC_Start(&hadc1);
+	if (HAL_ADC_PollForConversion(&hadc1, 1000000) == HAL_OK)
+	{
+		if (micros() - timestamp > 1000000) //1 s
+				{
+			timestamp = micros();
+			ADC_1.data = HAL_ADC_GetValue(&hadc1);
+			TempOld[num] = ADC_1.data;
+			TempNow = (((TempOld[num] * 3.6 / 256) - 0.76) / 2.5) + 25;
+			num++;
+			if (num == 100) {
+				num = 0;
+			}
+		}
+	}
+
+		HAL_ADC_Stop(&hadc1);
+
+}
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	if (htim == &htim11) {
 		_micro += 65535;
