@@ -157,8 +157,18 @@ int main(void) {
 		EEPROMRead(eepromDataReadBack, 3);
 		HAL_UART_Receive_IT(&huart2, RxDataBuffer, 1);
 
-		TempNow = (((Temp*3.6/256)-0.76 )/2.5)+25;
-
+		static uint8_t num = 0;
+		static uint64_t timestamp = 0;
+		if (micros() - timestamp > 1000000) //1 s
+				{
+			timestamp = micros();
+			TempOld[num] = Temp;
+			TempNow = (((TempOld[num]*3.6/256)-0.76 )/2.5)+25;
+			num++;
+			if (num == 100) {
+				num = 0;
+			}
+		}
 	}
 	/* USER CODE END 3 */
 }
