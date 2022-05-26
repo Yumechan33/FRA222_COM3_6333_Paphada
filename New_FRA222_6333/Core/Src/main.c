@@ -55,12 +55,6 @@ DMA_HandleTypeDef hdma_tim2_ch1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-typedef struct {
-	ADC_ChannelConfTypeDef Config;
-	uint8_t data;
-} ADCstructure;
-
-ADCstructure ADC_1;
 
 uint8_t Temp = 0;
 uint16_t TempOld[100] = { 0 };
@@ -107,7 +101,6 @@ static void MX_TIM11_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 void ADCPollingMethodUpdate();
-void ADCConfigInit();
 
 void UI_UART();
 
@@ -164,7 +157,6 @@ int main(void)
   /* USER CODE BEGIN 2 */
 	HAL_TIM_Base_Start_IT(&htim11);
 	HAL_UART_Transmit(&huart2, (uint8_t*) H0, strlen(H0), 1000);
-	ADCConfigInit();
 	IOExpenderInit();
 	HAL_TIM_Base_Start(&htim2);
 	HAL_TIM_IC_Start_DMA(&htim2, TIM_CHANNEL_1, (uint32_t*) &capturedata,
@@ -253,8 +245,8 @@ static void MX_ADC1_Init(void)
   hadc1.Instance = ADC1;
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
-  hadc1.Init.ScanConvMode = ENABLE;
-  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.ScanConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
@@ -739,30 +731,26 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
  }
  */
 
-void ADCConfigInit() {
-	ADC_1.Config.Channel = ADC_CHANNEL_0;
-	ADC_1.Config.Rank = 1;
-	ADC_1.Config.SamplingTime = ADC_SAMPLETIME_3CYCLES;
-}
-
 void ADCPollingMethodUpdate() {
 	static uint8_t num = 0;
-	static uint64_t timestamp = 0;
-	HAL_ADC_ConfigChannel(&hadc1, &ADC_1.Config);
+	static ADC_ChannelConfTypeDef sConfig;
+	sConfig.Channel = ADC_CHANNEL_0;
+	sConfig.Rank = 1;
+	sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+
+	HAL_ADC_ConfigChannel(&hadc1, &sConfig);
+
 	HAL_ADC_Start(&hadc1);
+
 	if (HAL_ADC_PollForConversion(&hadc1, 1000000) == HAL_OK)
 	{
-		if (micros() - timestamp > 1000000) //1 s
-				{
-			timestamp = micros();
-			ADC_1.data = HAL_ADC_GetValue(&hadc1);
-			TempOld[num] = ADC_1.data;
+			Temp = HAL_ADC_GetValue(&hadc1);
+			TempOld[num] = Temp;
 			TempNow = (((TempOld[num] * 3.6 / 256) - 0.76) / 2.5) + 25;
 			num++;
 			if (num == 100) {
 				num = 0;
 			}
-		}
 	}
 
 		HAL_ADC_Stop(&hadc1);

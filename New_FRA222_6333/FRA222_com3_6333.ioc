@@ -1,6 +1,6 @@
 #MicroXplorer Configuration settings - do not modify
 ADC1.Channel-3\#ChannelRegularConversion=ADC_CHANNEL_TEMPSENSOR
-ADC1.ContinuousConvMode=ENABLE
+ADC1.ContinuousConvMode=DISABLE
 ADC1.DMAContinuousRequests=DISABLE
 ADC1.ExternalTrigConv=ADC_SOFTWARE_START
 ADC1.IPParameters=Rank-3\#ChannelRegularConversion,master,Channel-3\#ChannelRegularConversion,SamplingTime-3\#ChannelRegularConversion,NbrOfConversionFlag,ScanConvMode,ContinuousConvMode,DMAContinuousRequests,ExternalTrigConv,InjNumberOfConversion
@@ -8,7 +8,7 @@ ADC1.InjNumberOfConversion=0
 ADC1.NbrOfConversionFlag=1
 ADC1.Rank-3\#ChannelRegularConversion=1
 ADC1.SamplingTime-3\#ChannelRegularConversion=ADC_SAMPLETIME_3CYCLES
-ADC1.ScanConvMode=ENABLE
+ADC1.ScanConvMode=DISABLE
 ADC1.master=1
 Dma.Request0=TIM2_CH1
 Dma.RequestsNb=1
